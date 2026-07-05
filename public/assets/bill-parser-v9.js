@@ -108,13 +108,21 @@
     return firstMatch(raw, patterns, safePersonName, 86, 'labelled_person');
   }
 
+  function cleanAddress(value) {
+    return compact(value)
+      .replace(/\s+\b(?:pod|pdr|codice|consumo|spesa|offerta|potenza|totale|cliente|fornitura)\b[\s\S]*$/i, '')
+      .replace(/[;,\-\s]+$/, '')
+      .trim();
+  }
+
   function extractFullAddress(text) {
     const addressPattern = /((?:via|viale|piazza|corso|largo|vicolo|strada|località|loc\.)\s+[A-Za-zÀ-ÿ0-9'’.,\- ]{3,110}?\s+\b\d{5}\b\s+[A-Za-zÀ-ÿ'’\- ]{2,48}\s*(?:\([A-Za-z]{2}\)|[A-Za-z]{2}))/i;
     const labels = /(?:indirizzo\s+(?:di\s+)?(?:fornitura|punto\s+di\s+fornitura|fatturazione)|indirizzo\s+fornitura)\s*[:\-]?\s*([\s\S]{0,220}?)(?=\b(?:codice\s+(?:fiscale|cliente|pod)|potenza|offerta|consumo\s+annuo|altre\s+informazioni)\b|$)/i.exec(text);
     const labelled = labels?.[1] ? labels[1].match(addressPattern) : null;
     const fallback = text.match(addressPattern);
     const match = labelled || fallback;
-    return match ? result(compact(match[1]), labelled ? 93 : 76, labelled ? 'labelled_address' : 'address_pattern') : empty('not_found');
+    const value = match ? cleanAddress(match[1]) : '';
+    return value ? result(value, labelled ? 93 : 76, labelled ? 'labelled_address' : 'address_pattern') : empty('not_found');
   }
 
   function billSignal(text) {
