@@ -149,6 +149,5 @@ export default async (request: Request, _context: Context) => {
 export const config: Config = {
   path: "/.netlify/functions/document-upload",
   method: "POST",
-  memory: 1024,
   rateLimit: { action: "rate_limit", aggregateBy: ["ip"], windowSize: 60, windowLimit: 6 }
 };
