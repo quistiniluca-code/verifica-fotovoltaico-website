@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "netlify dev",
-    "build": "node -e \"console.log('Static site: public is ready.')\"",
+    "build": "node tests/bill-parser-v9.test.mjs && node scripts/build-institutional-v9.mjs",
     "check": "tsc --noEmit",
     "test:bill-parser": "node tests/bill-parser-v9.test.mjs"
   },
