@@ -2,7 +2,6 @@
   'use strict';
 
   const FILE_INPUT_ID = 'bill';
-  const LEAD_ENDPOINT = '/.netlify/functions/lead-intake';
   const MAX_PDF_PAGES = 4;
   const state = { file: null, result: null, pending: Promise.resolve(null) };
 
@@ -65,7 +64,7 @@
   }
 
   function extractAnnualSpend(flat) {
-    const match = /(?:spesa\s+annua(?:le)?(?:\s+sostenuta)?|costo\s+annuo)[\s\S]{0,220}?([0-9]{1,3}(?:[.\s][0-9]{3})*(?:,[0-9]{2})?|[0-9]{2,8},[0-9]{2})\s*(?:€|eur)\b/i.exec(flat);
+    const match = /(?:spesa\s+annua(?:le)?(?:\s+sostenuta)?|costo\s+annuo)[\s\S]{0,220}?([0-9]{1,3}(?:[.\s][0-9]{3})*(?:,[0-9]{2})?|[0-9]{2,8},[0-9]{2})\s*(?:€|eur\b)/i.exec(flat);
     return match ? italianNumber(match[1]) : 0;
   }
 
@@ -133,7 +132,7 @@
   }
 
   async function enrich(file) {
-    if (!file || !/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') return null;
+    if (!file || (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf')) return null;
     const text = await readPdfText(file);
     const result = parseBillText(text);
     state.file = file;
