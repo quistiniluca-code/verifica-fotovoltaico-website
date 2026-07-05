@@ -1,0 +1,20 @@
+{
+  "name": "econ-report-preliminare",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "node -e \"console.log('Static site: public is ready.')\"",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@netlify/blobs": "10.7.9",
+    "@netlify/database": "1.1.0",
+    "@netlify/functions": "5.3.0"
+  },
+  "devDependencies": {
+    "netlify-cli": "26.1.0",
+    "typescript": "5.8.3"
+  }
+}
