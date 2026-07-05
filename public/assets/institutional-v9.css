@@ -1,0 +1,25 @@
+/* ECON v9 — progressive manual route and structured address fields */
+:root{--font:'Arimo',Arial,sans-serif}
+
+.manual-route{margin-top:12px}
+.manual-route strong{display:inline}
+.manual-route .manual-route-copy{display:block;margin-top:4px;color:var(--mut);font-size:10.5px;font-weight:600;line-height:1.3}
+
+#contactBlock[hidden]{display:none!important}
+#contactBlock.manual-open{animation:econManualIn .28s var(--ease) both}
+
+.roof-address-focus{padding:14px;border:1px solid rgba(141,198,63,.5);border-radius:18px;background:linear-gradient(135deg,#fbfff7,#f1fae6)}
+.address-grid{display:grid;grid-template-columns:1fr 1.35fr;gap:10px;margin-top:10px}
+.address-grid--street{grid-template-columns:minmax(0,1fr) 120px}
+.address-helper{margin:8px 0 0;color:var(--mut);font-size:10.5px;font-weight:600;line-height:1.35}
+.address-helper strong{color:var(--g);font-weight:700}
+#iaddress{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+
+@keyframes econManualIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
+
+@media(max-width:700px){
+  .address-grid,.address-grid--street{grid-template-columns:1fr}
+  .roof-address-focus{padding:12px;border-radius:15px}
+  .manual-route .manual-route-copy{font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){#contactBlock.manual-open{animation:none}}
