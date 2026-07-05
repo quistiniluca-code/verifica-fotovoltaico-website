@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build"
+  command = "npm run build && node scripts/align-home-copy-v9.mjs"
   publish = "dist"
   functions = "netlify/functions"
 
