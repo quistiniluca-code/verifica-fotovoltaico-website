@@ -11,6 +11,14 @@ function replaceOnce(source, from, to, label) {
   return source.replace(from, to);
 }
 
+function replaceSegment(source, startMarker, endMarker, replacement, label) {
+  const start = source.indexOf(startMarker);
+  if (start < 0) throw new Error(`Home alignment: start marker not found for ${label}`);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  if (end < 0) throw new Error(`Home alignment: end marker not found for ${label}`);
+  return source.slice(0, start) + replacement + source.slice(end);
+}
+
 const htmlPath = join(distDir, 'index.html');
 let html = await readFile(htmlPath, 'utf8');
 
@@ -93,6 +101,105 @@ app = replaceOnce(app,
   "const addressFocus = document.getElementById('iProvince') || els.iaddress;\n      try { addressFocus.focus({preventScroll:true}); } catch(error) { addressFocus.focus(); }",
   'structured address focus'
 );
-await writeFile(appPath, app);
 
-console.log('ECON home-aligned copy and split-address flow completed.');
+const activeParserAdapter = `function extractBillData(text){
+  const parser = window.EconBillParserV9;
+  if(!parser || typeof parser.parse !== 'function'){
+    return {kwh:0, kwhScope:'non_disponibile', amount:0, annualKwh:0, annualSpend:0, periodKwh:0, periodAmount:0, pod:'', confidence:0, billScore:0, isBill:false, user:{fullName:'', city:'', nameConfidence:0, cityConfidence:0}, fullAddress:'', source:'parser_non_disponibile', text:''};
+  }
+  const parsed = parser.parse(text);
+  const annualKwh = Number(parsed?.annualKwh?.value || 0);
+  const annualSpend = Number(parsed?.annualSpend?.value || 0);
+  const periodKwh = Number(parsed?.periodKwh?.value || 0);
+  const periodAmount = Number(parsed?.periodAmount?.value || 0);
+  const fullAddress = String(parsed?.fullAddress?.value || '').trim();
+  const cityMatch = fullAddress.match(/\\b\\d{5}\\b\\s+([^,(]+?)(?:\\s*\\([A-Z]{2}\\)|\\s+[A-Z]{2})$/i);
+  const city = cityMatch ? titleCase(String(cityMatch[1] || '').trim()) : '';
+  const confidence = Math.round((Number(parsed?.annualKwh?.confidence || 0) + Number(parsed?.annualSpend?.confidence || 0) + Number(parsed?.pod?.confidence || 0) + Number(parsed?.fullAddress?.confidence || 0)) / 4);
+  return {
+    kwh: annualKwh || periodKwh || 0,
+    kwhScope: annualKwh ? 'annuo' : (periodKwh ? 'periodo_fattura' : 'non_disponibile'),
+    amount: periodAmount || 0,
+    annualKwh,
+    annualSpend,
+    periodKwh,
+    periodAmount,
+    pod: String(parsed?.pod?.value || ''),
+    confidence,
+    billScore: Number(parsed?.billSignal || 0),
+    isBill: !!parsed?.isBill,
+    user: {
+      fullName: String(parsed?.fullName?.value || ''),
+      city,
+      nameConfidence: Number(parsed?.fullName?.confidence || 0),
+      cityConfidence: fullAddress ? Number(parsed?.fullAddress?.confidence || 0) : 0
+    },
+    fullAddress,
+    source: String(parsed?.source || 'local_parser_v10'),
+    text: String(parsed?.text || '')
+  };
+}
+`;
+app = replaceSegment(app, 'function extractBillData(text){', '\nasync function waitForGlobal', activeParserAdapter, 'single active structured parser');
+
+const reportInputResolver = `function resolveReportInputs(data){
+  const declared = manualEnergyData();
+  const parsedAnnualKwh = data && !data.fallback ? Number(data.annualKwh || 0) : 0;
+  const parsedAnnualSpend = data && !data.fallback ? Number(data.annualSpend || 0) : 0;
+  const annualKwh = declared.annualKwh || (parsedAnnualKwh >= 300 ? Math.round(parsedAnnualKwh) : 0);
+  const annualSpend = declared.annualSpend || (parsedAnnualSpend >= 50 ? parsedAnnualSpend : 0);
+  const monthlySpend = annualSpend ? Math.max(1, Math.round(annualSpend / 12)) : 0;
+  return {
+    annualKwh,
+    annualSpend,
+    monthlySpend,
+    hasEnergyBasis: annualKwh >= 300,
+    hasEconomicBasis: annualSpend >= 50,
+    energySource: declared.valid
+      ? 'consumo e spesa annui dichiarati'
+      : (parsedAnnualKwh >= 300
+        ? (parsedAnnualSpend >= 50 ? 'consumo e spesa annui letti in bolletta' : 'consumo annuo letto in bolletta; spesa annua da validare')
+        : 'dati annuali da completare')
+  };
+}
+`;
+app = replaceSegment(app, 'function resolveReportInputs(data){', '\n/*\n  Scenario opportunità ECON', reportInputResolver, 'annual data resolver');
+
+app = replaceOnce(app,
+  "const annualSpend = Math.max(metrics.annualSpend || 0, monthlySpend * 12, annualKwh * 0.34);\n  const scenario = estimateSystem(annualKwh);\n  const auto = autonomy(scenario.plant);\n  const selfConsumption = selfConsumptionPotential(scenario.plant, scenario.battery);\n  const combined = estimateAnnualValue(annualSpend);\n  const high = annualKwh >= 4200 || monthlySpend >= 125;\n  const mid = annualKwh >= 2200 || monthlySpend >= 70;",
+  "const hasEconomicBasis = metrics.hasEconomicBasis;\n  const annualSpend = hasEconomicBasis ? metrics.annualSpend : 0;\n  const scenario = estimateSystem(annualKwh);\n  const auto = autonomy(scenario.plant);\n  const selfConsumption = selfConsumptionPotential(scenario.plant, scenario.battery);\n  const combined = hasEconomicBasis ? estimateAnnualValue(annualSpend) : 0;\n  const high = annualKwh >= 4200 || (hasEconomicBasis && monthlySpend >= 125);\n  const mid = annualKwh >= 2200 || (hasEconomicBasis && monthlySpend >= 70);",
+  'no annual spend fabrication'
+);
+app = replaceOnce(app,
+  "els.readOut.textContent = scope + ': ' + num(annualKwh) + ' kWh/anno · spesa dichiarata: ' + eur(annualSpend) + '/anno' + (data.pod ? ' · POD rilevato' : '');",
+  "els.readOut.textContent = scope + ': ' + num(annualKwh) + ' kWh/anno' + (hasEconomicBasis ? ' · spesa annua letta: ' + eur(annualSpend) : ' · spesa annua da validare') + (data.pod ? ' · POD rilevato' : '');",
+  'transparent readout'
+);
+app = replaceOnce(app,
+  "els.saveOut.textContent = 'Fino a ' + eur(combined);\n  els.saveCopy.textContent = 'Scenario opportunità FV + accumulo + fornitura: da validare su profilo orario e tetto.';",
+  "els.saveOut.textContent = hasEconomicBasis ? 'Fino a ' + eur(combined) : 'Da validare';\n  els.saveCopy.textContent = hasEconomicBasis ? 'Scenario preliminare FV + accumulo + fornitura: da validare su profilo orario e tetto.' : 'La bolletta non espone una spesa annua affidabile: ECON la verifica prima di stimare un valore economico.';",
+  'economic report gate'
+);
+app = replaceOnce(app,
+  "els.hAmount.value = hasEnergyBasis ? String(Math.round(annualSpend / 12)) : '';\n  if(els.hAnnualSpend) els.hAnnualSpend.value = hasEnergyBasis ? String(Math.round(annualSpend)) : '';",
+  "els.hAmount.value = hasEnergyBasis && annualSpend >= 50 ? String(Math.round(annualSpend / 12)) : '';\n  if(els.hAnnualSpend) els.hAnnualSpend.value = hasEnergyBasis && annualSpend >= 50 ? String(Math.round(annualSpend)) : '';",
+  'hidden annual spend gate'
+);
+app = replaceOnce(app,
+  "els.hOptimization.value = hasEnergyBasis\n    ? 'Scenario opportunità annuo FV + accumulo + ottimizzazione fornitura: fino a ' + eur(combined)\n    : 'Stima economica da completare dopo verifica bolletta o consumi.';",
+  "els.hOptimization.value = hasEnergyBasis && annualSpend >= 50\n    ? 'Scenario preliminare annuo FV + accumulo + ottimizzazione fornitura: fino a ' + eur(combined)\n    : 'Stima economica da completare dopo verifica bolletta o consumi.';",
+  'hidden economic gate'
+);
+app = replaceOnce(app,
+  "fullAddress: els.iaddress.value.trim(),\n    energy: { annualKwh: manualEnergyData().annualKwh, annualSpend: manualEnergyData().annualSpend },",
+  "fullAddress: (billOnly ? (parsed.fullAddress || els.iaddress.value.trim()) : els.iaddress.value.trim()),\n    energy: billOnly\n      ? { annualKwh: Number(parsed.annualKwh || 0), annualSpend: Number(parsed.annualSpend || 0) }\n      : { annualKwh: manualEnergyData().annualKwh, annualSpend: manualEnergyData().annualSpend },",
+  'bill-only structured contact fields'
+);
+app = replaceOnce(app,
+  "amount: Number(parsed.amount || 0),\n      pod: parsed.pod || '',\n      confidence: Number(parsed.confidence || 0),\n      extractedName: user.fullName || '',\n      extractedCity: user.city || ''",
+  "amount: Number(parsed.amount || 0),\n      annualKwh: Number(parsed.annualKwh || 0),\n      annualSpend: Number(parsed.annualSpend || 0),\n      periodKwh: Number(parsed.periodKwh || 0),\n      periodAmount: Number(parsed.periodAmount || 0),\n      pod: parsed.pod || '',\n      confidence: Number(parsed.confidence || 0),\n      extractedName: user.fullName || '',\n      fullAddress: parsed.fullAddress || ''",
+  'structured document payload'
+);
+
+await writeFile(appPath, app);
+console.log('ECON v10 source-of-truth parser, annual-value guardrails and address flow completed.');
