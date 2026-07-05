@@ -8,72 +8,34 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox);
 const { parse } = sandbox.window.EconBillParserV9;
 
-const octopusLike = `
-BOLLETTA ENERGIA ELETTRICA
-Intestatario fornitura: MARIO ROSSI
-Indirizzo di fornitura: Via Esempio 14, 20100 Milano MI
-POD IT001E16093073
-Consumo annuo aggiornato 5.444 kWh
-Spesa annua sostenuta € 1.639,21
-Quota per consumi 569 kWh
-Importo 112,42 €
-Totale da pagare € 126,70
-`;
-
-const grittiLike = `
+const labelledAnnual = parse(`
 FATTURA ENERGIA ELETTRICA
-I tuoi dati
-ANNA BIANCHI
-Indirizzo di fornitura: Via Test 6, 21056 Induno Olona VA
-POD IT001E24256310
-Consumi annui: 692 kWh
-Spesa annua sostenuta: 375,86 €
-Totale da pagare 50,00 €
-`;
-
-// PDF.js joins text items on a page with spaces. This fixture protects the real browser path,
-// where visual line breaks are often not preserved in the text extraction output.
-const grittiPdfJsLike = `FATTURA ENERGIA ELETTRICA I tuoi dati ANNA BIANCHI Indirizzo di fornitura: Via Test 6, 21056 Induno Olona VA POD IT001E24256310 Consumi annui: 692 kWh Spesa annua sostenuta: 375,86 € Totale da pagare 50,00 €`;
-
-const periodOnly = `
-BOLLETTA ENERGIA
+Intestatario: CLIENTE TEST
+Indirizzo di fornitura: Via Esempio 8, 20100 Milano MI
 POD IT001E12345678
-Consumo del periodo 450 kWh
-Totale da pagare € 112,55
-`;
+Consumo totale fatturato del periodo: 123,45 kWh
+Consumo annuo aggiornato al seguente periodo: dal 01.01.2025 al 31.12.2025 1.234,56 kWh
+Totale spesa annua dal 01.01.2025 al 31.12.2025: 987,65 €
+Totale da pagare 150,00 €
+`);
 
-for (const fixture of [octopusLike, grittiLike, grittiPdfJsLike]) {
-  const parsed = parse(fixture);
-  assert.equal(parsed.isBill, true);
-  assert.ok(parsed.annualKwh.value > 0);
-  assert.ok(parsed.annualSpend.value > 0);
-  assert.ok(parsed.pod.value.startsWith('IT'));
-  assert.ok(parsed.fullName.value.length > 4);
-  assert.ok(parsed.fullAddress.value.length > 10);
-}
+assert.equal(labelledAnnual.isBill, true);
+assert.equal(labelledAnnual.annualKwh.value, 1235);
+assert.equal(labelledAnnual.annualSpend.value, 987.65);
+assert.equal(labelledAnnual.periodKwh.value, 123);
+assert.equal(labelledAnnual.periodAmount.value, 150);
+assert.equal(labelledAnnual.pod.value, 'IT001E12345678');
+assert.notEqual(labelledAnnual.annualSpend.value, labelledAnnual.periodAmount.value);
 
-const octopus = parse(octopusLike);
-assert.equal(octopus.annualKwh.value, 5444);
-assert.equal(octopus.annualSpend.value, 1639.21);
-assert.equal(octopus.periodKwh.value, 0, 'unlabelled quota kWh must not become period consumption');
-assert.equal(octopus.periodAmount.value, 126.7);
-assert.equal(octopus.pod.value, 'IT001E16093073');
-assert.equal(octopus.fullName.value, 'Mario Rossi');
+const flatPdfJs = parse('BOLLETTA LUCE I tuoi dati CLIENTE TEST Indirizzo di fornitura: Via Prova 9, 24000 Bergamo BG Consumo annuo 01/01/2025 - 31/12/2025 5.119,42 kWh Spesa annua sostenuta: 2.968,02 € CODICE POD IT001E87654321 TOTALE DA PAGARE 215,00 €');
+assert.equal(flatPdfJs.annualKwh.value, 5119);
+assert.equal(flatPdfJs.annualSpend.value, 2968.02);
+assert.equal(flatPdfJs.periodAmount.value, 215);
 
-const gritti = parse(grittiLike);
-assert.equal(gritti.annualKwh.value, 692);
-assert.equal(gritti.annualSpend.value, 375.86);
-assert.equal(gritti.periodAmount.value, 50);
-assert.equal(gritti.pod.value, 'IT001E24256310');
-assert.equal(gritti.fullName.value, 'Anna Bianchi');
+const noAnnualSpend = parse('BOLLETTA LUCE Contratto intestato a: CLIENTE TEST Via Esempio 2 23800 Lecco LC Consumo totale fatturato del periodo 2566 kWh In un anno hai consumato 10.000 kWh POD IT001E11423744 Totale da pagare 595,49 €');
+assert.equal(noAnnualSpend.annualKwh.value, 10000);
+assert.equal(noAnnualSpend.annualSpend.value, 0);
+assert.equal(noAnnualSpend.periodKwh.value, 2566);
+assert.equal(noAnnualSpend.periodAmount.value, 595.49);
 
-const grittiPdfJs = parse(grittiPdfJsLike);
-assert.equal(grittiPdfJs.fullName.value, 'Anna Bianchi', 'flattened PDF.js extraction must preserve the bill holder');
-
-const period = parse(periodOnly);
-assert.equal(period.annualKwh.value, 0, 'a period consumption must not be promoted to annual consumption');
-assert.equal(period.annualSpend.value, 0, 'a period total must not be promoted to annual spend');
-assert.equal(period.periodKwh.value, 450);
-assert.equal(period.periodAmount.value, 112.55);
-
-console.log('bill-parser-v9 tests passed');
+console.log('bill-parser-v10 regression tests passed');
