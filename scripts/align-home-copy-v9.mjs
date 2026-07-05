@@ -31,7 +31,7 @@ html = replaceOnce(html,
 );
 html = replaceOnce(html,
   '<p class="lead">Carica la bolletta o inserisci i dati annuali: ECON prepara una prima lettura di consumi, tetto, fotovoltaico, accumulo e margine di autonomia.</p>',
-  '<p class="lead">Carica la bolletta: ottieni una <span class="energyWord">lettura chiara del potenziale energetico</span>, con focus su produzione, accumulo, fornitura energia e margine economico da verificare.</p>',
+  '<p class="lead">Carica la bolletta: ottieni una lettura chiara del tuo <span class="energyWord">Sistema Energia</span>, con focus su produzione, accumulo, fornitura energia e margine economico da verificare.</p>',
   'hero lead'
 );
 html = replaceOnce(html,
