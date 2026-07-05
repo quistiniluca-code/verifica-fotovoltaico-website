@@ -1,0 +1,54 @@
+/* ECON — institutional analysis polish: preserves approved visual system while clarifying method and next step. */
+:root{--font:'Arimo',Arial,sans-serif}
+
+.hero .lead{max-width:660px;font-weight:600}
+.hero .eyebrow{letter-spacing:.065em}
+.institutional-clarifier{display:flex;gap:8px;align-items:flex-start;margin-top:14px;padding:11px 13px;color:var(--g);background:linear-gradient(135deg,#f8fdf3,#edf8df);border:1px solid rgba(141,198,63,.52);border-radius:17px;font-size:12px;font-weight:700;line-height:1.36}
+.institutional-clarifier svg{flex:0 0 18px;width:18px;height:18px;margin-top:1px;color:var(--g)}
+.institutional-clarifier strong{font-weight:700}
+
+.panel::before{content:'Analisi preliminare ECON';letter-spacing:.07em}
+.panel .sub{max-width:350px;line-height:1.34}
+.bill-first-note{color:var(--g);background:#f5fcee}
+.uploadCue{background:#0a6800}
+.upload em{max-width:410px;margin-right:auto;margin-left:auto;line-height:1.36}
+.upload-privacy-note{max-width:440px;margin:10px auto 0;color:var(--mut);font-size:10.5px;font-weight:700;line-height:1.35;text-align:center}
+.upload-privacy-note a{color:var(--g);font-weight:700}
+
+.bill-data-confirmation{display:none;gap:8px;align-items:flex-start;margin:10px 0 2px;padding:10px 11px;color:var(--g);background:#f4faec;border:1px solid rgba(141,198,63,.62);border-radius:14px;font-size:11px;font-weight:700;line-height:1.34}
+.bill-data-confirmation.show{display:flex;animation:institutionalFade .28s var(--ease) both}
+.bill-data-confirmation svg{flex:0 0 17px;width:17px;height:17px;margin-top:1px}
+.bill-data-confirmation b{display:block;font-size:11px;font-weight:700}
+.bill-data-confirmation span{display:block;margin-top:2px;color:var(--ink2);font-weight:600}
+
+.contact-block.bill-first-ready{display:none}
+.fallback-note{font-weight:700}
+.fallback-note strong{font-weight:700}
+
+.report .card-label,.report .readline small{letter-spacing:.07em}
+.report-method{display:grid;gap:9px;margin-top:10px;padding:13px 14px;background:#fff;border:1px solid rgba(4,61,0,.12);border-radius:17px;box-shadow:0 8px 22px rgba(4,61,0,.06)}
+.report-method b{color:var(--g);font-size:12.5px;font-weight:700;line-height:1.2}
+.report-method ul{display:flex;flex-wrap:wrap;gap:7px;padding:0;list-style:none}
+.report-method li{padding:6px 8px;color:var(--ink2);background:#f5fcee;border:1px solid rgba(141,198,63,.38);border-radius:999px;font-size:10px;font-weight:700;line-height:1.15}
+.report-scope-note{margin:10px 0 0;color:var(--mut);font-size:10.5px;font-weight:600;line-height:1.34}
+
+.success-state .wa-btn{margin-top:2px}
+.sticky-cta{transition:opacity .2s var(--ease),transform .2s var(--ease),visibility .2s var(--ease)}
+.sticky-cta[data-source-in-view='true']{pointer-events:none;visibility:hidden;opacity:0;transform:translateY(12px)}
+
+@keyframes institutionalFade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media (max-width:900px){
+  .institutional-clarifier{margin-top:10px;padding:9px 10px;border-radius:14px;font-size:10.8px;line-height:1.3}
+  .institutional-clarifier svg{flex-basis:16px;width:16px;height:16px}
+  .upload-privacy-note{margin-top:8px;font-size:9.7px;line-height:1.28}
+  .bill-data-confirmation{margin-top:8px;padding:9px 10px;border-radius:13px;font-size:10px}
+  .report-method{gap:8px;margin-top:9px;padding:11px 12px;border-radius:15px}
+  .report-method b{font-size:11.5px}
+  .report-method ul{gap:6px}
+  .report-method li{padding:5px 7px;font-size:9.2px}
+  .report-scope-note{font-size:9.7px}
+}
+@media (prefers-reduced-motion:reduce){
+  .bill-data-confirmation.show{animation:none}
+  .sticky-cta{transition:none}
+}
