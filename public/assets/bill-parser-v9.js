@@ -54,7 +54,7 @@
   function extractAnnualKwh(text) {
     const patterns = [
       /(?:consumo|consumi)\s+annuo(?:\s+aggiornato)?\s*[:\-]?\s*([0-9]{1,3}(?:[.\s][0-9]{3})+|[0-9]{2,7})\s*kwh\b/i,
-      /(?:consumo|consumi)\s+annuali?\s*[:\-]?\s*([0-9]{1,3}(?:[.\s][0-9]{3})+|[0-9]{2,7})\s*kwh\b/i,
+      /(?:consumo|consumi)\s+(?:annua|annuo|annuali|annui)\s*[:\-]?\s*([0-9]{1,3}(?:[.\s][0-9]{3})+|[0-9]{2,7})\s*kwh\b/i,
       /(?:ultimi\s+12\s+mesi|12\s+mesi)\s*[:\-]?\s*([0-9]{1,3}(?:[.\s][0-9]{3})+|[0-9]{2,7})\s*kwh\b/i
     ];
     const found = firstMatch(text, patterns, value => Math.round(italianNumber(value)), 96, 'annual_label');
