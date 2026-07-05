@@ -31,6 +31,10 @@ Spesa annua sostenuta: 375,86 €
 Totale da pagare 50,00 €
 `;
 
+// PDF.js joins text items on a page with spaces. This fixture protects the real browser path,
+// where visual line breaks are often not preserved in the text extraction output.
+const grittiPdfJsLike = `FATTURA ENERGIA ELETTRICA I tuoi dati ANNA BIANCHI Indirizzo di fornitura: Via Test 6, 21056 Induno Olona VA POD IT001E24256310 Consumi annui: 692 kWh Spesa annua sostenuta: 375,86 € Totale da pagare 50,00 €`;
+
 const periodOnly = `
 BOLLETTA ENERGIA
 POD IT001E12345678
@@ -38,7 +42,7 @@ Consumo del periodo 450 kWh
 Totale da pagare € 112,55
 `;
 
-for (const fixture of [octopusLike, grittiLike]) {
+for (const fixture of [octopusLike, grittiLike, grittiPdfJsLike]) {
   const parsed = parse(fixture);
   assert.equal(parsed.isBill, true);
   assert.ok(parsed.annualKwh.value > 0);
@@ -62,6 +66,9 @@ assert.equal(gritti.annualSpend.value, 375.86);
 assert.equal(gritti.periodAmount.value, 50);
 assert.equal(gritti.pod.value, 'IT001E24256310');
 assert.equal(gritti.fullName.value, 'Anna Bianchi');
+
+const grittiPdfJs = parse(grittiPdfJsLike);
+assert.equal(grittiPdfJs.fullName.value, 'Anna Bianchi', 'flattened PDF.js extraction must preserve the bill holder');
 
 const period = parse(periodOnly);
 assert.equal(period.annualKwh.value, 0, 'a period consumption must not be promoted to annual consumption');
