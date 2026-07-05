@@ -11,8 +11,13 @@
   const municipality = byId('iComune');
   const street = byId('iVia');
   const civic = byId('iCivico');
+  const fields = [province, municipality, street, civic];
 
-  if (!contactBlock || !manualRoute || !hiddenAddress || !province || !municipality || !street || !civic) return;
+  if (!contactBlock || !manualRoute || !hiddenAddress || fields.some(field => !field)) return;
+
+  function hasEveryAddressPart() {
+    return fields.every(field => normalize(field.value));
+  }
 
   function composeAddress() {
     const streetLine = [normalize(street.value), normalize(civic.value)].filter(Boolean).join(', ');
@@ -20,8 +25,10 @@
     return [streetLine, localityLine].filter(Boolean).join(' — ');
   }
 
-  function syncAddress() {
-    const composed = composeAddress();
+  function syncAddress(forceManualValidation = false) {
+    const hasAnyPart = fields.some(field => normalize(field.value));
+    if (!hasAnyPart && !forceManualValidation) return;
+    const composed = hasEveryAddressPart() ? composeAddress() : '';
     if (hiddenAddress.value !== composed) {
       hiddenAddress.value = composed;
       hiddenAddress.dispatchEvent(new Event('input', { bubbles: true }));
@@ -33,7 +40,12 @@
     contactBlock.hidden = !open;
     contactBlock.classList.toggle('manual-open', open);
     manualRoute.setAttribute('aria-expanded', String(open));
+    fields.forEach(field => {
+      field.required = open;
+      field.setAttribute('aria-required', String(open));
+    });
     if (manualHint) manualHint.textContent = open ? 'Puoi tornare alla bolletta in qualsiasi momento.' : 'Inserisci i dati solo se non hai la bolletta.';
+    if (open) syncAddress(true);
     if (open && focus) {
       window.setTimeout(() => province.focus({ preventScroll: true }), 0);
     }
@@ -45,18 +57,18 @@
     contactBlock.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   }, true);
 
-  [province, municipality, street, civic].forEach(field => {
-    field.addEventListener('input', syncAddress);
-    field.addEventListener('change', syncAddress);
+  fields.forEach(field => {
+    field.addEventListener('input', () => syncAddress(true));
+    field.addEventListener('change', () => syncAddress(true));
   });
 
   const observer = new MutationObserver(() => {
     if (contactBlock.classList.contains('bill-first-ready')) {
+      fields.forEach(field => { field.required = false; field.setAttribute('aria-required', 'false'); });
       contactBlock.hidden = true;
     }
   });
   observer.observe(contactBlock, { attributes: true, attributeFilter: ['class'] });
 
   setManualOpen(false, false);
-  syncAddress();
 })();
