@@ -44,6 +44,7 @@ for (const fixture of [octopusLike, grittiLike]) {
   assert.ok(parsed.annualKwh.value > 0);
   assert.ok(parsed.annualSpend.value > 0);
   assert.ok(parsed.pod.value.startsWith('IT'));
+  assert.ok(parsed.fullName.value.length > 4);
   assert.ok(parsed.fullAddress.value.length > 10);
 }
 
@@ -53,12 +54,14 @@ assert.equal(octopus.annualSpend.value, 1639.21);
 assert.equal(octopus.periodKwh.value, 0, 'unlabelled quota kWh must not become period consumption');
 assert.equal(octopus.periodAmount.value, 126.7);
 assert.equal(octopus.pod.value, 'IT001E16093073');
+assert.equal(octopus.fullName.value, 'Mario Rossi');
 
 const gritti = parse(grittiLike);
 assert.equal(gritti.annualKwh.value, 692);
 assert.equal(gritti.annualSpend.value, 375.86);
 assert.equal(gritti.periodAmount.value, 50);
 assert.equal(gritti.pod.value, 'IT001E24256310');
+assert.equal(gritti.fullName.value, 'Anna Bianchi');
 
 const period = parse(periodOnly);
 assert.equal(period.annualKwh.value, 0, 'a period consumption must not be promoted to annual consumption');
