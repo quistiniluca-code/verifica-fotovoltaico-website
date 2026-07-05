@@ -103,7 +103,7 @@
   function extractFullName(raw) {
     const patterns = [
       /(?:intestatario(?:\s+(?:del\s+)?contratto|\s+(?:della\s+)?fornitura|\s+fornitura)?|nominativo|cliente\s+finale|titolare|ragione\s+sociale|denominazione)\s*[:\-]?\s*([^\n]{5,90})/i,
-      /i\s+tuoi\s+dati\s*\n\s*([A-ZÀ-Ý][A-ZÀ-Ý'’.\- ]{4,90})\s*\n\s*(?:indirizzo|codice)/i
+      /i\s+tuoi\s+dati\s+([A-ZÀ-Ý][A-ZÀ-Ý'’.\- ]{4,90}?)(?=\s+(?:indirizzo|codice)\b)/i
     ];
     return firstMatch(raw, patterns, safePersonName, 86, 'labelled_person');
   }
