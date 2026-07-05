@@ -9,6 +9,12 @@ const ALLOWED_SOURCE = new Set(["initial_report_upload", "post_report_upload"]);
 
 type DocumentRow = { id: string; blob_key: string; sha256: string };
 
+function boundedNumber(value: unknown, min = 0, max = 1_000_000): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) return 0;
+  return Math.round(parsed * 100) / 100;
+}
+
 async function detectMime(file: File): Promise<string | null> {
   const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
   const starts = (...bytes: number[]) => bytes.every((byte, index) => header[index] === byte);
@@ -26,17 +32,22 @@ async function sha256(file: File): Promise<string> {
 }
 
 function assessmentSummary(raw: FormDataEntryValue | null): Record<string, unknown> {
-  if (typeof raw !== "string" || raw.length > 2500) return {};
+  if (typeof raw !== "string" || raw.length > 3500) return {};
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     return {
       status: text(parsed.status, 40),
-      kwh: Number(parsed.kwh || 0),
+      kwh: boundedNumber(parsed.kwh),
       kwhScope: text(parsed.kwhScope, 40),
-      amount: Number(parsed.amount || 0),
+      amount: boundedNumber(parsed.amount),
+      annualKwh: boundedNumber(parsed.annualKwh),
+      annualSpend: boundedNumber(parsed.annualSpend),
+      periodKwh: boundedNumber(parsed.periodKwh),
+      periodAmount: boundedNumber(parsed.periodAmount),
       pod: text(parsed.pod, 40),
-      confidence: Number(parsed.confidence || 0),
-      isBill: Boolean(parsed.isBill)
+      confidence: boundedNumber(parsed.confidence, 0, 1000),
+      isBill: Boolean(parsed.isBill),
+      source: text(parsed.source, 60)
     };
   } catch {
     return {};
