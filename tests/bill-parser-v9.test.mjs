@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('../public/assets/bill-parser-v9.js', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../public/assets/bill-parser-v10.js', import.meta.url), 'utf8');
 const sandbox = { window: {} };
 vm.createContext(sandbox);
 vm.runInContext(source, sandbox);
