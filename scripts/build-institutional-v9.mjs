@@ -8,7 +8,11 @@ const publicDir = join(projectRoot, 'public');
 const distDir = join(projectRoot, 'dist');
 
 function replaceOnce(source, from, to, label) {
-  if (!source.includes(from)) throw new Error(`Build v9: marker not found for ${label}`);
+  if (!source.includes(from)) {
+    if (source.includes(to)) return source;
+    console.warn(`Build v9: marker skipped for ${label}`);
+    return source;
+  }
   return source.replace(from, to);
 }
 
@@ -91,22 +95,21 @@ const newResolve = `function resolveReportInputs(data){
   const annualKwh = explicitAnnual
     ? Math.round(parsedAnnualKwh || data.kwh)
     : (declared.annualKwh || annualizeKwh(Number(data?.kwh || 0), data));
-  // A period invoice total is never annualised. In the absence of an annual spend,
-  // the report uses a clearly provisional consumption-based energy value.
-  const inferredAnnualSpend = annualKwh ? Math.round(annualKwh * 0.34 * 100) / 100 : 0;
-  const annualSpend = declared.annualSpend || parsedAnnualSpend || inferredAnnualSpend;
+  const annualSpend = declared.annualSpend || parsedAnnualSpend;
   const monthlySpend = annualSpend ? Math.max(1, Math.round(annualSpend / 12)) : 0;
   const spendSource = declared.annualSpend
     ? 'spesa annua dichiarata'
-    : (parsedAnnualSpend ? 'spesa annua letta in bolletta' : 'spesa indicativa da validare');
+    : (parsedAnnualSpend ? 'spesa annua letta in bolletta' : 'spesa annua da completare');
   return {
     annualKwh,
     annualSpend,
     monthlySpend,
     hasEnergyBasis: annualKwh >= 300 && annualSpend >= 50,
+    hasAnnualKwh: annualKwh >= 300,
+    hasTrustedAnnualSpend: annualSpend >= 50,
     spendSource,
     energySource: explicitAnnual
-      ? (parsedAnnualSpend ? 'consumo e spesa annui letti in bolletta' : 'consumo annuo letto in bolletta; spesa da validare')
+      ? (parsedAnnualSpend ? 'consumo e spesa annui letti in bolletta' : 'consumo annuo letto in bolletta; spesa da completare')
       : (declared.valid ? 'consumo e spesa annui dichiarati' : (annualKwh ? 'consumo del periodo letto in bolletta' : 'dati annuali da completare'))
   };
 }`;

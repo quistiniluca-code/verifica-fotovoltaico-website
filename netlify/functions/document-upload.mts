@@ -1,7 +1,6 @@
 import type { Config, Context } from "@netlify/functions";
-import { getDatabase } from "@netlify/database";
 import { getStore } from "@netlify/blobs";
-import { errorMessage, json, requestRejected, safeRequestId, safeUuid, text } from "../lib/shared.mjs";
+import { econDatabase, errorMessage, json, requestRejected, safeRequestId, safeUuid, text } from "../lib/shared.mjs";
 
 const MAX_FILE_BYTES = 7 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
@@ -54,16 +53,19 @@ function assessmentSummary(raw: FormDataEntryValue | null): Record<string, unkno
   }
 }
 
-export default async (request: Request, _context: Context) => {
+export default async (request: Request, context: Context) => {
   if (request.method !== "POST") return json({ message: "Metodo non consentito." }, 405);
   const rejected = requestRejected(request);
   if (rejected) return rejected;
 
   let writtenBlobKey: string | null = null;
+  let logRequestId = "unparsed";
   try {
     const form = await request.formData();
     const leadId = safeUuid(form.get("lead_id"));
     const requestId = safeRequestId(form.get("request_id"));
+    logRequestId = requestId;
+    const cid = text(context.requestId, 120) || requestId;
     const source = text(form.get("source"), 80);
     const document = form.get("document");
     const assessment = assessmentSummary(form.get("assessment"));
@@ -83,7 +85,8 @@ export default async (request: Request, _context: Context) => {
     }
 
     const hash = await sha256(document);
-    const db = getDatabase();
+    const db = econDatabase();
+    console.info("document-upload started", { cid, requestId, leadId, source });
     const existing = await db.sql<DocumentRow>`SELECT id, blob_key, sha256 FROM econ_documents WHERE lead_id = ${leadId} AND sha256 = ${hash} LIMIT 1`;
     if (existing[0]) {
       await db.sql`INSERT INTO econ_lead_events (id, lead_id, event_type, client_event_id, payload, created_at)
@@ -141,6 +144,7 @@ export default async (request: Request, _context: Context) => {
       );
       await client.query("UPDATE econ_leads SET last_activity_at = NOW(), updated_at = NOW() WHERE id = $1", [leadId]);
       await client.query("COMMIT");
+      console.info("document-upload completed", { cid, requestId, leadId, documentId });
       return json({ accepted: true, duplicate: false, documentId });
     } catch (error) {
       await client.query("ROLLBACK");
@@ -152,13 +156,12 @@ export default async (request: Request, _context: Context) => {
     if (writtenBlobKey) {
       try { await getStore("econ-private-documents").delete(writtenBlobKey); } catch { /* best effort orphan cleanup */ }
     }
-    console.error("document-upload failed", { message: errorMessage(error) });
+    console.error("document-upload failed", { requestId: logRequestId, message: errorMessage(error) });
     return json({ message: "Non è stato possibile acquisire il documento. Riprova." }, 500);
   }
 };
 
 export const config: Config = {
-  path: "/.netlify/functions/document-upload",
   method: "POST",
   rateLimit: { action: "rate_limit", aggregateBy: ["ip"], windowSize: 60, windowLimit: 6 }
 };

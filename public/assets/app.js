@@ -684,20 +684,27 @@ function annualizeKwh(kwh, data){
 
 function resolveReportInputs(data){
   const declared = manualEnergyData();
-  const explicitAnnual = data && !data.fallback && data.kwhScope === 'annuo' && data.kwh >= 300;
+  const parsedAnnualKwh = Number(data?.annualKwh || 0);
+  const parsedAnnualSpend = Number(data?.annualSpend || 0);
+  const explicitAnnual = data && !data.fallback && (parsedAnnualKwh >= 300 || (data.kwhScope === 'annuo' && data.kwh >= 300));
   const annualKwh = explicitAnnual
-    ? Math.round(data.kwh)
+    ? Math.round(parsedAnnualKwh || data.kwh)
     : (declared.annualKwh || annualizeKwh(Number(data?.kwh || 0), data));
-  const annualSpend = declared.annualSpend
-    || (annualKwh ? Math.max(annualKwh * 0.34, Number(data?.amount || 0) * 6) : Math.max(0, Number(data?.amount || 0)));
+  const annualSpend = declared.annualSpend || parsedAnnualSpend;
   const monthlySpend = annualSpend ? Math.max(1, Math.round(annualSpend / 12)) : 0;
+  const spendSource = declared.annualSpend
+    ? 'spesa annua dichiarata'
+    : (parsedAnnualSpend ? 'spesa annua letta in bolletta' : 'spesa annua da completare');
   return {
     annualKwh,
     annualSpend,
     monthlySpend,
     hasEnergyBasis: annualKwh >= 300 && annualSpend >= 50,
+    hasAnnualKwh: annualKwh >= 300,
+    hasTrustedAnnualSpend: annualSpend >= 50,
+    spendSource,
     energySource: explicitAnnual
-      ? 'consumo annuo letto in bolletta + spesa annua dichiarata'
+      ? (parsedAnnualSpend ? 'consumo e spesa annui letti in bolletta' : 'consumo annuo letto in bolletta; spesa da completare')
       : (declared.valid ? 'consumo e spesa annui dichiarati' : (annualKwh ? 'consumo del periodo letto in bolletta' : 'dati annuali da completare'))
   };
 }
@@ -762,22 +769,25 @@ function estimateAnnualValue(annualSpend){
 
 function updateHiddenFields(data, scenario, combined, annualKwh, annualSpend, source){
   const hasEnergyBasis = annualKwh >= 300;
+  const hasTrustedSpend = annualSpend >= 50;
   els.hText.value = data?.isBill
     ? 'OCR locale completato: nessun testo integrale della bolletta archiviato nel form.'
     : 'Scenario preliminare basato su indirizzo, consumo annuale e spesa annuale dichiarati.';
   els.hKwh.value = hasEnergyBasis ? String(annualKwh) : '';
-  els.hAmount.value = hasEnergyBasis ? String(Math.round(annualSpend / 12)) : '';
-  if(els.hAnnualSpend) els.hAnnualSpend.value = hasEnergyBasis ? String(Math.round(annualSpend)) : '';
+  els.hAmount.value = hasTrustedSpend ? String(Math.round(annualSpend / 12)) : '';
+  if(els.hAnnualSpend) els.hAnnualSpend.value = hasTrustedSpend ? String(Math.round(annualSpend)) : '';
   els.hPod.value = data?.pod || '';
   els.hKwp.value = hasEnergyBasis
     ? 'fino a ' + power(scenario.plant) + ' kWp + accumulo fino a ' + power(scenario.battery) + ' kWh'
     : 'Verifica tetto e consumi da completare';
   els.hStorage.value = hasEnergyBasis ? power(scenario.battery) + ' kWh' : 'Da definire';
   els.hOptimization.value = hasEnergyBasis
-    ? 'Scenario opportunità annuo FV + accumulo + ottimizzazione fornitura: fino a ' + eur(combined)
+    ? (hasTrustedSpend
+      ? 'Scenario opportunità annuo FV + accumulo + ottimizzazione fornitura: fino a ' + eur(combined)
+      : 'Stima economica da completare dopo acquisizione di una spesa annua affidabile.')
     : 'Stima economica da completare dopo verifica bolletta o consumi.';
   els.hRating.value = hasEnergyBasis
-    ? (data?.fallback ? 'Scenario opportunità preliminare' : 'Bolletta letta — scenario opportunità') + ' — base: ' + source + ' — ' + num(annualKwh) + ' kWh/anno · ' + eur(annualSpend) + '/anno — scenario ' + els.hKwp.value
+    ? (data?.fallback ? 'Scenario opportunità preliminare' : 'Bolletta letta — scenario opportunità') + ' — base: ' + source + ' — ' + num(annualKwh) + ' kWh/anno' + (hasTrustedSpend ? ' · ' + eur(annualSpend) + '/anno' : ' · spesa annua da completare') + ' — scenario ' + els.hKwp.value
     : 'Indirizzo completo acquisito — verifica prioritaria di tetto, esposizione, ombreggiamenti e superficie.';
   els.hFallback.value = data?.fallback ? (data.fallbackReason || 'verifica indirizzo attiva') : 'no';
   els.hPhase.value = 'report_generato';
@@ -816,11 +826,11 @@ function setReport(data){
 
   const annualKwh = metrics.annualKwh;
   const monthlySpend = metrics.monthlySpend;
-  const annualSpend = Math.max(metrics.annualSpend || 0, monthlySpend * 12, annualKwh * 0.34);
+  const annualSpend = metrics.annualSpend || 0;
   const scenario = estimateSystem(annualKwh);
   const auto = autonomy(scenario.plant);
   const selfConsumption = selfConsumptionPotential(scenario.plant, scenario.battery);
-  const combined = estimateAnnualValue(annualSpend);
+  const combined = metrics.hasTrustedAnnualSpend ? estimateAnnualValue(annualSpend) : 0;
   const high = annualKwh >= 4200 || monthlySpend >= 125;
   const mid = annualKwh >= 2200 || monthlySpend >= 70;
 
@@ -837,7 +847,7 @@ function setReport(data){
       : 'Il report usa consumo e spesa annuali dichiarati, da validare con ECON.')
     : 'La bolletta è stata letta: lo scenario integra consumi, importi e dati tecnici da validare sul tetto.';
   const scope = data.kwhScope === 'annuo' ? 'consumo annuo letto' : (data.kwh ? 'consumo del periodo letto' : 'dati annuali dichiarati');
-  els.readOut.textContent = scope + ': ' + num(annualKwh) + ' kWh/anno · spesa dichiarata: ' + eur(annualSpend) + '/anno' + (data.pod ? ' · POD rilevato' : '');
+  els.readOut.textContent = scope + ': ' + num(annualKwh) + ' kWh/anno · ' + metrics.spendSource + (metrics.hasTrustedAnnualSpend ? ': ' + eur(annualSpend) + '/anno' : '') + (data.pod ? ' · POD rilevato' : '');
   els.desireTitle.textContent = unreadableDocument ? 'Riprova con una bolletta leggibile per affinare il report.' : (high ? 'Questo profilo può valorizzare davvero il tetto disponibile.' : 'Qui c’è margine per aumentare autonomia e autoconsumo.');
   els.desireCopy.textContent = unreadableDocument
     ? 'Il file selezionato non sembra una bolletta elettrica leggibile: carica il documento integrale, nitido e con consumi visibili.'
@@ -847,8 +857,10 @@ function setReport(data){
   els.bar.style.width = high ? '94%' : (mid ? '76%' : '60%');
   els.autoOut.textContent = auto + '%';
   els.autoCopy.textContent = 'Autoconsumo potenziale fino a ' + selfConsumption + '% con accumulo e profilo di utilizzo favorevole.';
-  els.saveOut.textContent = 'Fino a ' + eur(combined);
-  els.saveCopy.textContent = 'Scenario opportunità FV + accumulo + fornitura: da validare su profilo orario e tetto.';
+  els.saveOut.textContent = metrics.hasTrustedAnnualSpend ? 'Fino a ' + eur(combined) : 'Da stimare';
+  els.saveCopy.textContent = metrics.hasTrustedAnnualSpend
+    ? 'Scenario opportunità FV + accumulo + fornitura: da validare su profilo orario e tetto.'
+    : 'Serve una spesa annua affidabile per stimare un valore economico personalizzato.';
   els.supplyOut.textContent = 'Margine extra con fornitura energia';
   els.supplyCopy.textContent = 'Completa il progetto FV dopo la verifica tecnica.';
   els.report.classList.add('show');
@@ -912,18 +924,26 @@ function currentContactPayload(){
     fullName: (billOnly ? (user.fullName || els.iname.value.trim()) : els.iname.value.trim()),
     phone: els.iphone.value.trim(),
     email: els.iemail.value.trim(),
-    fullAddress: els.iaddress.value.trim(),
-    energy: { annualKwh: manualEnergyData().annualKwh, annualSpend: manualEnergyData().annualSpend },
+    fullAddress: (billOnly ? (user.fullAddress || els.iaddress.value.trim()) : els.iaddress.value.trim()),
+    energy: {
+      annualKwh: billOnly ? (Number(parsed.annualKwh || (parsed.kwhScope === 'annuo' ? parsed.kwh : 0)) || manualEnergyData().annualKwh) : manualEnergyData().annualKwh,
+      annualSpend: billOnly ? (Number(parsed.annualSpend || 0) || manualEnergyData().annualSpend) : manualEnergyData().annualSpend
+    },
     document: {
       fileSelected: !!state.selectedFile,
       status: billRouteStatus(),
       kwh: Number(parsed.kwh || 0),
       kwhScope: parsed.kwhScope || 'non_disponibile',
       amount: Number(parsed.amount || 0),
+      annualKwh: Number(parsed.annualKwh || (parsed.kwhScope === 'annuo' ? parsed.kwh : 0)),
+      annualSpend: Number(parsed.annualSpend || 0),
+      periodKwh: Number(parsed.periodKwh || (parsed.kwhScope === 'periodo_fattura' ? parsed.kwh : 0)),
+      periodAmount: Number(parsed.periodAmount || 0),
       pod: parsed.pod || '',
       confidence: Number(parsed.confidence || 0),
       extractedName: user.fullName || '',
-      extractedCity: user.city || ''
+      extractedCity: user.city || '',
+      fullAddress: user.fullAddress || ''
     },
     privacyNoticeVersion: CONFIG.PRIVACY_NOTICE_VERSION,
     privacyAccepted: billOnly ? true : els.privacy.checked,
@@ -968,6 +988,10 @@ function compactAssessment(assessment){
     kwh: Number(parsed?.kwh || 0),
     kwhScope: parsed?.kwhScope || 'non_disponibile',
     amount: Number(parsed?.amount || 0),
+    annualKwh: Number(parsed?.annualKwh || (parsed?.kwhScope === 'annuo' ? parsed?.kwh : 0)),
+    annualSpend: Number(parsed?.annualSpend || 0),
+    periodKwh: Number(parsed?.periodKwh || (parsed?.kwhScope === 'periodo_fattura' ? parsed?.kwh : 0)),
+    periodAmount: Number(parsed?.periodAmount || 0),
     pod: parsed?.pod || '',
     confidence: Number(parsed?.confidence || 0),
     isBill: !!parsed?.isBill
@@ -1113,7 +1137,7 @@ function whatsappUrl(){
   const parsed = state.primaryDocumentAssessment?.parsed || {};
   const annualKwh = Number(els.hKwh.value || manualEnergyData().annualKwh || 0);
   const annualSpend = Number(els.hAnnualSpend?.value || manualEnergyData().annualSpend || 0);
-  const address = els.iaddress.value.trim() || parsed.user?.city || '--';
+  const address = els.iaddress.value.trim() || parsed.user?.fullAddress || parsed.user?.city || '--';
   const message = [
     'Buongiorno ECON,',
     'ho richiesto il report preliminare dalla landing.',
@@ -1147,7 +1171,7 @@ function refreshDeliveryUi(){
   const primaryFile = state.selectedFile;
   const postFile = state.postReportFile;
   const activeFile = currentDocumentFile();
-  const leadConfirmed = state.immediateLeadStatus === true || state.fullReportStatus === true;
+  const leadConfirmed = state.immediateLeadStatus === true;
   const deliveryFailed = state.immediateLeadStatus === false && state.fullReportStatus === false;
   const primaryDocumentDelivered = isDocumentDelivered(primaryFile);
   const postDocumentDelivered = isDocumentDelivered(postFile);
@@ -1159,7 +1183,7 @@ function refreshDeliveryUi(){
   if(els.successState) els.successState.classList.toggle('delivery-unconfirmed', deliveryFailed);
   if(els.successEyebrow){
     els.successEyebrow.textContent = deliveryFailed
-      ? 'Invio da confermare'
+      ? 'Invio non confermato'
       : (leadConfirmed ? 'Richiesta presa in carico' : 'Stiamo confermando l’invio');
   }
 
@@ -1484,7 +1508,7 @@ els.leadForm.addEventListener('submit', async event => {
   els.submitBtn.textContent = 'Genero il report';
   updateStickyCta(false);
   setFileControlsLocked(true);
-  setHelp('Richiesta acquisita. Stiamo elaborando il report preliminare.', true);
+  setHelp('Stiamo preparando l’analisi e confermando l’invio della richiesta.', true);
 
   const fileSnapshot = state.selectedFile;
   const leadPromise = beginLeadCapture();

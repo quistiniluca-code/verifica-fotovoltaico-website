@@ -10,6 +10,14 @@ function replaceOnce(source, from, to, label) {
   return source.replace(from, to);
 }
 
+function replaceOnceIfPresent(source, from, to, label) {
+  if (!source.includes(from)) {
+    console.log(`Annual-value guard: marker already absent for ${label}`);
+    return source;
+  }
+  return source.replace(from, to);
+}
+
 let app = await readFile(appPath, 'utf8');
 
 // Native PDFs are cheap to read as text. Six pages cover the supplied formats where
@@ -22,18 +30,27 @@ app = replaceOnce(
 );
 
 // Never create a commercial value from a consumption coefficient when the bill does not state annual spend.
-app = replaceOnce(
+app = replaceOnceIfPresent(
   app,
   '  const inferredAnnualSpend = annualKwh ? Math.round(annualKwh * 0.34 * 100) / 100 : 0;',
   '  const inferredAnnualSpend = 0;',
   'remove inferred annual spend'
 );
-app = replaceOnce(
-  app,
-  ": (parsedAnnualSpend ? 'spesa annua letta in bolletta' : 'spesa indicativa da validare');",
-  ": (parsedAnnualSpend ? 'spesa annua letta in bolletta' : 'spesa annua non disponibile');",
-  'spend source transparency'
-);
+if (app.includes(": (parsedAnnualSpend ? 'spesa annua letta in bolletta' : 'spesa indicativa da validare');")) {
+  app = replaceOnce(
+    app,
+    ": (parsedAnnualSpend ? 'spesa annua letta in bolletta' : 'spesa indicativa da validare');",
+    ": (parsedAnnualSpend ? 'spesa annua letta in bolletta' : 'spesa annua non disponibile');",
+    'spend source transparency'
+  );
+} else {
+  app = replaceOnceIfPresent(
+    app,
+    ": (parsedAnnualSpend ? 'spesa annua letta in bolletta' : 'spesa annua da completare');",
+    ": (parsedAnnualSpend ? 'spesa annua letta in bolletta' : 'spesa annua non disponibile');",
+    'spend source transparency'
+  );
+}
 
 await writeFile(appPath, app);
 console.log('ECON annual-spend guard and native PDF coverage completed.');

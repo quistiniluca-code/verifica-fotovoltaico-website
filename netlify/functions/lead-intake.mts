@@ -1,6 +1,6 @@
 import type { Config, Context } from "@netlify/functions";
-import { getDatabase } from "@netlify/database";
 import {
+  econDatabase,
   errorMessage,
   json,
   normalizedPhone,
@@ -28,6 +28,11 @@ type DocumentSummary = {
   extractedName: string;
   fullAddress: string;
 };
+
+function correlationId(context: Context, requestId: string): string {
+  const platformId = text(context.requestId, 120);
+  return platformId || requestId;
+}
 
 function optionalEmail(value: unknown): string | null {
   const email = text(value, 254).toLowerCase();
@@ -100,18 +105,17 @@ function scoreLead(input: { intakeMode: IntakeMode; address: string | null; emai
   return Math.max(0, Math.min(100, score));
 }
 
-function documentOnlyPhone(leadId: string): string {
-  return `DOC${leadId.replace(/-/g, "").slice(0, 17)}`;
-}
-
-export default async (request: Request, _context: Context) => {
+export default async (request: Request, context: Context) => {
   if (request.method !== "POST") return json({ message: "Metodo non consentito." }, 405);
   const rejected = requestRejected(request);
   if (rejected) return rejected;
 
+  let logRequestId = "unparsed";
   try {
     const body = await request.json() as Record<string, unknown>;
     const requestId = safeRequestId(body.requestId);
+    logRequestId = requestId;
+    const cid = correlationId(context, requestId);
     if (text(body.botField, 100)) return json({ accepted: true });
 
     const contact = (body.contact || {}) as Record<string, unknown>;
@@ -139,11 +143,14 @@ export default async (request: Request, _context: Context) => {
       return json({ message: "Carica una bolletta prima di usare il percorso diretto." }, 422);
     }
 
-    const scoredKwh = energy.annualKwh ?? document.annualKwh;
-    const scoredSpend = energy.annualSpend ?? document.annualSpend;
+    const declaredAnnualKwh = energy.annualKwh;
+    const declaredAnnualSpend = energy.annualSpend;
+    const scoredKwh = declaredAnnualKwh ?? document.annualKwh;
+    const scoredSpend = declaredAnnualSpend ?? document.annualSpend;
     const score = scoreLead({ intakeMode, address, email, annualKwh: scoredKwh, annualSpend: scoredSpend, document });
-    const db = getDatabase();
+    const db = econDatabase();
     const client = await db.pool.connect();
+    console.info("lead-intake started", { cid, requestId, intakeMode });
 
     try {
       await client.query("BEGIN");
@@ -177,7 +184,11 @@ export default async (request: Request, _context: Context) => {
                  consumption_mode = COALESCE($5, consumption_mode),
                  consumption_value = COALESCE($6, consumption_value),
                  estimated_annual_kwh = COALESCE($6, estimated_annual_kwh),
-                 estimated_monthly_spend = CASE WHEN $7 IS NULL THEN estimated_monthly_spend ELSE ROUND(($7 / 12.0)::numeric, 2) END,
+                 estimated_monthly_spend = CASE WHEN $7::numeric IS NULL THEN estimated_monthly_spend ELSE ROUND(($7::numeric / 12.0)::numeric, 2) END,
+                 declared_annual_kwh = COALESCE($14, declared_annual_kwh),
+                 declared_annual_spend = COALESCE($15, declared_annual_spend),
+                 intake_mode = $12,
+                 bill_pod = COALESCE($16, bill_pod),
                  attribution = $8::jsonb,
                  form_version = $9,
                  client_session_id = $10,
@@ -187,28 +198,26 @@ export default async (request: Request, _context: Context) => {
                  updated_at = NOW(),
                  last_activity_at = NOW()
            WHERE id = $1`,
-          [leadId, fullName, email, address, intakeMode === "manual" ? "annual_kwh_and_spend" : "bill_ocr", scoredKwh, scoredSpend, JSON.stringify(attribution), formVersion, clientSessionId, score, intakeMode, JSON.stringify({ annualKwh: scoredKwh, annualSpend: scoredSpend, periodKwh: document.periodKwh, periodAmount: document.periodAmount, pod: document.pod, intakeMode })]
+          [leadId, fullName, email, address, intakeMode === "manual" ? "annual_kwh_and_spend" : "bill_ocr", scoredKwh, scoredSpend, JSON.stringify(attribution), formVersion, clientSessionId, score, intakeMode, JSON.stringify({ annualKwh: scoredKwh, annualSpend: scoredSpend, periodKwh: document.periodKwh, periodAmount: document.periodAmount, pod: document.pod, intakeMode }), declaredAnnualKwh, declaredAnnualSpend, document.pod || null]
         );
       } else {
         leadId = crypto.randomUUID();
         created = true;
-        const storedName = fullName || "Documento da verificare";
-        const storedPhone = phone || documentOnlyPhone(leadId);
-        const storedEmail = email || "document-only@invalid.econ";
-        const storedAddress = address || "Indirizzo da verificare";
         await client.query(
           `INSERT INTO econ_leads (
              id, full_name, phone_normalized, email, full_address,
              consumption_mode, consumption_value, estimated_annual_kwh, estimated_monthly_spend,
+             declared_annual_kwh, declared_annual_spend, intake_mode, bill_pod,
              privacy_notice_version, privacy_seen_at, attribution, form_version, client_session_id,
              lead_score, status, last_report, created_at, updated_at, last_activity_at
            ) VALUES (
              $1, $2, $3, $4, $5,
-             $6, $7, $7, CASE WHEN $8 IS NULL THEN NULL ELSE ROUND(($8 / 12.0)::numeric, 2) END,
+             $6, $7, $7, CASE WHEN $8::numeric IS NULL THEN NULL ELSE ROUND(($8::numeric / 12.0)::numeric, 2) END,
+             $16, $17, $18, $19,
              $9, NOW(), $10::jsonb, $11, $12,
              $13, $14, $15::jsonb, NOW(), NOW(), NOW()
            )`,
-          [leadId, storedName, storedPhone, storedEmail, storedAddress, intakeMode === "manual" ? "annual_kwh_and_spend" : "bill_ocr", scoredKwh, scoredSpend, privacyNoticeVersion, JSON.stringify(attribution), formVersion, clientSessionId, score, intakeMode === "bill_only" ? "document_only" : "new", JSON.stringify({ annualKwh: scoredKwh, annualSpend: scoredSpend, periodKwh: document.periodKwh, periodAmount: document.periodAmount, pod: document.pod, intakeMode })]
+          [leadId, fullName, phone, email, address, intakeMode === "manual" ? "annual_kwh_and_spend" : "bill_ocr", scoredKwh, scoredSpend, privacyNoticeVersion, JSON.stringify(attribution), formVersion, clientSessionId, score, intakeMode === "bill_only" ? "document_only" : "new", JSON.stringify({ annualKwh: scoredKwh, annualSpend: scoredSpend, periodKwh: document.periodKwh, periodAmount: document.periodAmount, pod: document.pod, intakeMode }), declaredAnnualKwh, declaredAnnualSpend, intakeMode, document.pod || null]
         );
       }
 
@@ -238,6 +247,7 @@ export default async (request: Request, _context: Context) => {
         })]
       );
       await client.query("COMMIT");
+      console.info("lead-intake completed", { cid, requestId, leadId, created, intakeMode });
       return json({ leadId, created, duplicate: false, intakeMode });
     } catch (error) {
       await client.query("ROLLBACK");
@@ -250,13 +260,12 @@ export default async (request: Request, _context: Context) => {
     if (/Telefono non valido|Email non valida|Indirizzo completo non valido|Consumo annuale non valido|Spesa annuale non valida/i.test(message)) {
       return json({ message }, 422);
     }
-    console.error("lead-intake failed", { message });
+    console.error("lead-intake failed", { requestId: logRequestId, message });
     return json({ message: "Non è stato possibile acquisire la richiesta. Verifica la connessione e riprova." }, 500);
   }
 };
 
 export const config: Config = {
-  path: "/.netlify/functions/lead-intake",
   method: "POST",
   rateLimit: { action: "rate_limit", aggregateBy: ["ip"], windowSize: 60, windowLimit: 8 }
 };
