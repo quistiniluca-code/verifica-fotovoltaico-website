@@ -1,4 +1,5 @@
 import type { Context } from "@netlify/functions";
+import { getDatabase } from "@netlify/database";
 
 export const JSON_HEADERS = {
   "Content-Type": "application/json; charset=utf-8",
@@ -68,4 +69,10 @@ export function getClientIp(context: Context): string | null {
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Errore tecnico non identificato.";
+}
+
+export function econDatabase() {
+  return getDatabase({
+    connectionString: process.env.NETLIFY_DB_URL || process.env.NETLIFY_AGENT_RUNNER_DB_CONNECTION_STRING
+  });
 }

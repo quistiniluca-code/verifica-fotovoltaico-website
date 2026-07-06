@@ -1,6 +1,5 @@
 import type { Config, Context } from "@netlify/functions";
-import { getDatabase } from "@netlify/database";
-import { errorMessage, json, requestRejected, safeRequestId, safeUuid, text } from "../lib/shared.mjs";
+import { econDatabase, errorMessage, json, requestRejected, safeRequestId, safeUuid, text } from "../lib/shared.mjs";
 
 const EVENT_TYPES = new Set([
   "report_generated",
@@ -15,22 +14,26 @@ function payloadWithinLimit(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-export default async (request: Request, _context: Context) => {
+export default async (request: Request, context: Context) => {
   if (request.method !== "POST") return json({ message: "Metodo non consentito." }, 405);
   const rejected = requestRejected(request);
   if (rejected) return rejected;
 
+  let logRequestId = "unparsed";
   try {
     const body = await request.json() as Record<string, unknown>;
     const requestId = safeRequestId(body.requestId);
+    logRequestId = requestId;
+    const cid = text(context.requestId, 120) || requestId;
     const leadId = safeUuid(body.leadId);
     const eventType = text(body.eventType, 80);
     const payload = payloadWithinLimit(body.payload);
 
     if (!EVENT_TYPES.has(eventType)) return json({ message: "Tipo evento non consentito." }, 422);
 
-    const db = getDatabase();
+    const db = econDatabase();
     const client = await db.pool.connect();
+    console.info("lead-event started", { cid, requestId, leadId, eventType });
     try {
       await client.query("BEGIN");
       const lead = await client.query<{ id: string }>("SELECT id FROM econ_leads WHERE id = $1 FOR UPDATE", [leadId]);
@@ -56,6 +59,7 @@ export default async (request: Request, _context: Context) => {
         await client.query("UPDATE econ_leads SET last_activity_at = NOW(), updated_at = NOW() WHERE id = $1", [leadId]);
       }
       await client.query("COMMIT");
+      console.info("lead-event completed", { cid, requestId, leadId, eventType, duplicate: !inserted.rows[0] });
       return json({ accepted: true, duplicate: !inserted.rows[0] });
     } catch (error) {
       await client.query("ROLLBACK");
@@ -64,13 +68,12 @@ export default async (request: Request, _context: Context) => {
       client.release();
     }
   } catch (error) {
-    console.error("lead-event failed", { message: errorMessage(error) });
+    console.error("lead-event failed", { requestId: logRequestId, message: errorMessage(error) });
     return json({ message: "Non è stato possibile registrare l’evento." }, 500);
   }
 };
 
 export const config: Config = {
-  path: "/.netlify/functions/lead-event",
   method: "POST",
   rateLimit: { action: "rate_limit", aggregateBy: ["ip"], windowSize: 60, windowLimit: 20 }
 };
