@@ -66,13 +66,10 @@ function documentSummary(value: unknown): DocumentSummary {
   const kwh = safeNumber(source.kwh, 0, 1_000_000);
   const amount = safeNumber(source.amount, 0, 1_000_000);
   const kwhScope = text(source.kwhScope, 40);
-  const annualKwh = safeNumber(source.annualKwh, 100, 1_000_000)
-    ?? (kwhScope === "annuo" ? kwh : null);
+  const annualKwh = safeNumber(source.annualKwh, 100, 1_000_000) ?? (kwhScope === "annuo" ? kwh : null);
   const annualSpend = safeNumber(source.annualSpend, 25, 1_000_000);
-  const periodKwh = safeNumber(source.periodKwh, 1, 1_000_000)
-    ?? (kwhScope === "periodo_fattura" ? kwh : null);
-  const periodAmount = safeNumber(source.periodAmount, 1, 1_000_000)
-    ?? (amount && !annualSpend ? amount : null);
+  const periodKwh = safeNumber(source.periodKwh, 1, 1_000_000) ?? (kwhScope === "periodo_fattura" ? kwh : null);
+  const periodAmount = safeNumber(source.periodAmount, 1, 1_000_000) ?? (amount && !annualSpend ? amount : null);
 
   return {
     fileSelected,
@@ -101,6 +98,10 @@ function scoreLead(input: { intakeMode: IntakeMode; address: string | null; emai
   if ((input.annualSpend || 0) >= 1200) score += 8;
   if (input.email) score += 5;
   return Math.max(0, Math.min(100, score));
+}
+
+function documentOnlyPhone(leadId: string): string {
+  return `DOC${leadId.replace(/-/g, "").slice(0, 17)}`;
 }
 
 export default async (request: Request, _context: Context) => {
@@ -138,14 +139,12 @@ export default async (request: Request, _context: Context) => {
       return json({ message: "Carica una bolletta prima di usare il percorso diretto." }, 422);
     }
 
-    // Only explicitly annual values are allowed to populate annual energy and commercial score.
-    // A single invoice total remains a period reference and is never annualised server-side.
     const scoredKwh = energy.annualKwh ?? document.annualKwh;
     const scoredSpend = energy.annualSpend ?? document.annualSpend;
     const score = scoreLead({ intakeMode, address, email, annualKwh: scoredKwh, annualSpend: scoredSpend, document });
-
     const db = getDatabase();
     const client = await db.pool.connect();
+
     try {
       await client.query("BEGIN");
       const previousEvent = await client.query<{ lead_id: string }>(
@@ -159,11 +158,11 @@ export default async (request: Request, _context: Context) => {
 
       let existing: LeadRow | null = null;
       if (phone) {
-        const result = await client.query<LeadRow>(
+        const existingResult = await client.query<LeadRow>(
           "SELECT id FROM econ_leads WHERE phone_normalized = $1 FOR UPDATE",
           [phone]
         );
-        existing = result.rows[0] || null;
+        existing = existingResult.rows[0] || null;
       }
 
       let leadId: string;
@@ -175,44 +174,41 @@ export default async (request: Request, _context: Context) => {
              SET full_name = COALESCE($2, full_name),
                  email = COALESCE($3, email),
                  full_address = COALESCE($4, full_address),
-                 consumption_mode = CASE WHEN $5 = 'manual' THEN 'annual_kwh_and_spend' ELSE COALESCE(consumption_mode, 'bill_ocr') END,
+                 consumption_mode = COALESCE($5, consumption_mode),
                  consumption_value = COALESCE($6, consumption_value),
-                 declared_annual_kwh = COALESCE($6, declared_annual_kwh),
-                 declared_annual_spend = COALESCE($7, declared_annual_spend),
                  estimated_annual_kwh = COALESCE($6, estimated_annual_kwh),
                  estimated_monthly_spend = CASE WHEN $7 IS NULL THEN estimated_monthly_spend ELSE ROUND(($7 / 12.0)::numeric, 2) END,
-                 intake_mode = $5,
-                 bill_pod = COALESCE(NULLIF($8, ''), bill_pod),
-                 privacy_notice_version = $9,
-                 privacy_seen_at = NOW(),
-                 attribution = $10::jsonb,
-                 form_version = $11,
-                 client_session_id = $12,
-                 lead_score = GREATEST(lead_score, $13),
-                 status = CASE WHEN status IN ('new', 'document_only') THEN $14 ELSE status END,
+                 attribution = $8::jsonb,
+                 form_version = $9,
+                 client_session_id = $10,
+                 lead_score = GREATEST(lead_score, $11),
+                 status = CASE WHEN status = 'new' AND $12 = 'bill_only' THEN 'document_only' ELSE status END,
+                 last_report = $13::jsonb,
                  updated_at = NOW(),
                  last_activity_at = NOW()
            WHERE id = $1`,
-          [leadId, fullName, email, address, intakeMode, scoredKwh, scoredSpend, document.pod, privacyNoticeVersion, JSON.stringify(attribution), formVersion, clientSessionId, score, intakeMode === "bill_only" ? "document_only" : "new"]
+          [leadId, fullName, email, address, intakeMode === "manual" ? "annual_kwh_and_spend" : "bill_ocr", scoredKwh, scoredSpend, JSON.stringify(attribution), formVersion, clientSessionId, score, intakeMode, JSON.stringify({ annualKwh: scoredKwh, annualSpend: scoredSpend, periodKwh: document.periodKwh, periodAmount: document.periodAmount, pod: document.pod, intakeMode })]
         );
       } else {
         leadId = crypto.randomUUID();
         created = true;
+        const storedName = fullName || "Documento da verificare";
+        const storedPhone = phone || documentOnlyPhone(leadId);
+        const storedEmail = email || "document-only@invalid.econ";
+        const storedAddress = address || "Indirizzo da verificare";
         await client.query(
           `INSERT INTO econ_leads (
              id, full_name, phone_normalized, email, full_address,
-             consumption_mode, consumption_value, declared_annual_kwh, declared_annual_spend,
-             estimated_annual_kwh, estimated_monthly_spend, intake_mode, bill_pod,
+             consumption_mode, consumption_value, estimated_annual_kwh, estimated_monthly_spend,
              privacy_notice_version, privacy_seen_at, attribution, form_version, client_session_id,
-             lead_score, status, created_at, updated_at, last_activity_at
+             lead_score, status, last_report, created_at, updated_at, last_activity_at
            ) VALUES (
              $1, $2, $3, $4, $5,
-             $6, $7, $7, $8,
-             $7, CASE WHEN $8 IS NULL THEN NULL ELSE ROUND(($8 / 12.0)::numeric, 2) END, $9, NULLIF($10, ''),
-             $11, NOW(), $12::jsonb, $13, $14,
-             $15, $16, NOW(), NOW(), NOW()
+             $6, $7, $7, CASE WHEN $8 IS NULL THEN NULL ELSE ROUND(($8 / 12.0)::numeric, 2) END,
+             $9, NOW(), $10::jsonb, $11, $12,
+             $13, $14, $15::jsonb, NOW(), NOW(), NOW()
            )`,
-          [leadId, fullName, phone, email, address, intakeMode === "manual" ? "annual_kwh_and_spend" : "bill_ocr", scoredKwh, scoredSpend, intakeMode, document.pod, privacyNoticeVersion, JSON.stringify(attribution), formVersion, clientSessionId, score, intakeMode === "bill_only" ? "document_only" : "new"]
+          [leadId, storedName, storedPhone, storedEmail, storedAddress, intakeMode === "manual" ? "annual_kwh_and_spend" : "bill_ocr", scoredKwh, scoredSpend, privacyNoticeVersion, JSON.stringify(attribution), formVersion, clientSessionId, score, intakeMode === "bill_only" ? "document_only" : "new", JSON.stringify({ annualKwh: scoredKwh, annualSpend: scoredSpend, periodKwh: document.periodKwh, periodAmount: document.periodAmount, pod: document.pod, intakeMode })]
         );
       }
 
@@ -227,8 +223,8 @@ export default async (request: Request, _context: Context) => {
           addressProvided: !!address,
           emailProvided: !!email,
           phoneProvided: !!phone,
-          declaredAnnualKwh: energy.annualKwh,
-          declaredAnnualSpend: energy.annualSpend,
+          annualKwh: scoredKwh,
+          annualSpend: scoredSpend,
           document: {
             fileSelected: document.fileSelected,
             status: document.status,
