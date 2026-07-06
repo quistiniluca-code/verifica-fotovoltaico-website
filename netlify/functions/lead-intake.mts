@@ -19,10 +19,14 @@ type DocumentSummary = {
   kwh: number | null;
   kwhScope: string;
   amount: number | null;
+  annualKwh: number | null;
+  annualSpend: number | null;
+  periodKwh: number | null;
+  periodAmount: number | null;
   pod: string;
   confidence: number | null;
   extractedName: string;
-  extractedCity: string;
+  fullAddress: string;
 };
 
 function optionalEmail(value: unknown): string | null {
@@ -61,16 +65,29 @@ function documentSummary(value: unknown): DocumentSummary {
   const fileSelected = source.fileSelected === true;
   const kwh = safeNumber(source.kwh, 0, 1_000_000);
   const amount = safeNumber(source.amount, 0, 1_000_000);
+  const kwhScope = text(source.kwhScope, 40);
+  const annualKwh = safeNumber(source.annualKwh, 100, 1_000_000)
+    ?? (kwhScope === "annuo" ? kwh : null);
+  const annualSpend = safeNumber(source.annualSpend, 25, 1_000_000);
+  const periodKwh = safeNumber(source.periodKwh, 1, 1_000_000)
+    ?? (kwhScope === "periodo_fattura" ? kwh : null);
+  const periodAmount = safeNumber(source.periodAmount, 1, 1_000_000)
+    ?? (amount && !annualSpend ? amount : null);
+
   return {
     fileSelected,
     status,
     kwh,
-    kwhScope: text(source.kwhScope, 40),
+    kwhScope,
     amount,
+    annualKwh,
+    annualSpend,
+    periodKwh,
+    periodAmount,
     pod: text(source.pod, 40),
     confidence: safeNumber(source.confidence, 0, 1000),
     extractedName: text(source.extractedName, 120),
-    extractedCity: text(source.extractedCity, 120)
+    fullAddress: text(source.fullAddress, 320)
   };
 }
 
@@ -102,7 +119,7 @@ export default async (request: Request, _context: Context) => {
     const fullName = text(contact.fullName, 120) || document.extractedName || null;
     const phone = optionalPhone(contact.phone);
     const email = optionalEmail(contact.email);
-    const address = optionalAddress(contact.fullAddress);
+    const address = optionalAddress(contact.fullAddress || document.fullAddress);
     const energy = declaredEnergy(contact.energy, intakeMode === "manual");
     const privacyAccepted = contact.privacyAccepted === true;
     const privacyNoticeVersion = text(contact.privacyNoticeVersion, 100);
@@ -121,8 +138,10 @@ export default async (request: Request, _context: Context) => {
       return json({ message: "Carica una bolletta prima di usare il percorso diretto." }, 422);
     }
 
-    const scoredKwh = energy.annualKwh ?? (document.kwhScope === "annuo" ? document.kwh : null);
-    const scoredSpend = energy.annualSpend ?? null;
+    // Only explicitly annual values are allowed to populate annual energy and commercial score.
+    // A single invoice total remains a period reference and is never annualised server-side.
+    const scoredKwh = energy.annualKwh ?? document.annualKwh;
+    const scoredSpend = energy.annualSpend ?? document.annualSpend;
     const score = scoreLead({ intakeMode, address, email, annualKwh: scoredKwh, annualSpend: scoredSpend, document });
 
     const db = getDatabase();
@@ -213,9 +232,10 @@ export default async (request: Request, _context: Context) => {
           document: {
             fileSelected: document.fileSelected,
             status: document.status,
-            kwh: document.kwh,
-            kwhScope: document.kwhScope,
-            amount: document.amount,
+            annualKwh: document.annualKwh,
+            annualSpend: document.annualSpend,
+            periodKwh: document.periodKwh,
+            periodAmount: document.periodAmount,
             pod: document.pod,
             confidence: document.confidence
           }
