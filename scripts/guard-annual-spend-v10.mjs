@@ -12,6 +12,15 @@ function replaceOnce(source, from, to, label) {
 
 let app = await readFile(appPath, 'utf8');
 
+// Native PDFs are cheap to read as text. Six pages cover the supplied formats where
+// annual spend is placed after the summary page (for example, on historical-data page 5).
+app = replaceOnce(
+  app,
+  'for(let pageNo = 1; pageNo <= Math.min(pdf.numPages, 4); pageNo++){',
+  'for(let pageNo = 1; pageNo <= Math.min(pdf.numPages, 6); pageNo++){',
+  'native PDF page coverage'
+);
+
 // Never create a commercial value from a consumption coefficient when the bill does not state annual spend.
 app = replaceOnce(
   app,
@@ -27,4 +36,4 @@ app = replaceOnce(
 );
 
 await writeFile(appPath, app);
-console.log('ECON annual-spend guard completed.');
+console.log('ECON annual-spend guard and native PDF coverage completed.');
