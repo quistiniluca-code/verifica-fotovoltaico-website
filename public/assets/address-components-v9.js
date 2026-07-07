@@ -5,7 +5,6 @@
   const normalize = value => String(value || '').replace(/\s+/g, ' ').trim();
   const contactBlock = byId('contactBlock');
   const manualRoute = byId('manualRoute');
-  const manualHint = byId('manualRouteHint');
   const hiddenAddress = byId('iaddress');
   const province = byId('iProvince');
   const municipality = byId('iComune');
@@ -44,7 +43,6 @@
       field.required = open;
       field.setAttribute('aria-required', String(open));
     });
-    if (manualHint) manualHint.textContent = open ? 'Puoi tornare alla bolletta in qualsiasi momento.' : 'Inserisci i dati solo se non hai la bolletta.';
     if (open) syncAddress(true);
     if (open && focus) {
       window.setTimeout(() => province.focus({ preventScroll: true }), 0);
