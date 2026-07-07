@@ -10,4 +10,5 @@ const newTag = '<script defer src="assets/bill-parser-v10.js"></script>';
 if (!html.includes(oldTag)) throw new Error('Parser switch: v9 parser script marker not found.');
 html = html.replace(oldTag, newTag);
 await writeFile(indexPath, html);
-console.log('ECON parser v10 enabled in build output.');
+await import('./add-report-ready-cta.mjs');
+console.log('ECON parser v10 and report-ready CTA enabled in build output.');
