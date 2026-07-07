@@ -11,4 +11,9 @@ if (!html.includes(oldTag)) throw new Error('Parser switch: v9 parser script mar
 html = html.replace(oldTag, newTag);
 await writeFile(indexPath, html);
 await import('./add-report-ready-cta.mjs');
-console.log('ECON parser v10 and report-ready CTA enabled in build output.');
+
+html = await readFile(indexPath, 'utf8');
+const ctaStyle = '<link rel="stylesheet" href="assets/report-ready.css">';
+if (!html.includes(ctaStyle)) html = html.replace('</head>', `${ctaStyle}\n</head>`);
+await writeFile(indexPath, html);
+console.log('ECON parser v10 and report-ready CTA stylesheet enabled in build output.');
