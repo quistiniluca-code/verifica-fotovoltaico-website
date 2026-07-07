@@ -20,6 +20,12 @@ function stripRequired(html, id) {
 let html = await readFile(indexPath, 'utf8');
 const app = await readFile(appPath, 'utf8');
 
+/* Remove the original manual-only contact fields first. This prevents the
+   privacy selector from accidentally removing the newly inserted first-step consent. */
+html = html.replace(/\s*<div class="field"><label for="iphone">Telefono<\/label><input id="iphone"[^>]*><\/div>/, '');
+html = html.replace(/\s*<div class="single-field-row">\s*<div class="field field--full"><label for="iemail">Email<\/label><input id="iemail"[^>]*><\/div>\s*<\/div>/, '');
+html = html.replace(/\s*<label class="privacy"><input type="checkbox" id="privacy"[^>]*> Ho preso visione dell’<a href="https:\/\/www\.econ-apex\.com\/privacy" target="_blank" rel="noopener">Informativa Privacy<\/a>\.<\/label>/, '');
+
 const contactCard = `
           <section class="contact-capture" aria-label="Contatti per ricevere il report">
             <div class="contact-capture-head"><span class="contact-capture-kicker">I tuoi contatti</span><small>Per inviarti il report e ricontattarti.</small></div>
@@ -35,10 +41,6 @@ if (!html.includes('class="contact-capture"')) {
   html = html.replace('<div class="bill-first" id="billFirst">', `<div class="bill-first" id="billFirst">${contactCard}`);
 }
 
-html = html.replace(/\s*<div class="field"><label for="iphone">Telefono<\/label><input id="iphone"[^>]*><\/div>/, '');
-html = html.replace(/\s*<div class="single-field-row">\s*<div class="field field--full"><label for="iemail">Email<\/label><input id="iemail"[^>]*><\/div>\s*<\/div>/, '');
-html = html.replace(/\s*<label class="privacy"><input type="checkbox" id="privacy"[^>]*> Ho preso visione dell’<a href="https:\/\/www\.econ-apex\.com\/privacy" target="_blank" rel="noopener">Informativa Privacy<\/a>\.<\/label>/, '');
-
 ['iname', 'iaddress', 'iconsumptionvalue', 'iannualspend'].forEach(id => { html = stripRequired(html, id); });
 html = html.replace('<div class="required-grid">', '<div class="single-field-row manual-name-row">');
 
@@ -52,9 +54,9 @@ const replacement = `function validate(){
   const billRoute = hasBillRoute();
   const name = els.iname.value.trim();
   const address = els.iaddress.value.trim();
-  const emailOk = isValidEmail(els.iemail.value.trim());
-  const phoneOk = isValidPhone(els.iphone.value);
-  const privacyOk = !!els.privacy.checked;
+  const emailOk = isValidEmail(els.iemail?.value?.trim() || '');
+  const phoneOk = isValidPhone(els.iphone?.value || '');
+  const privacyOk = Boolean(els.privacy?.checked);
   const energy = manualEnergyData();
   const contactOk = phoneOk && emailOk && privacyOk;
   const manualOk = contactOk
@@ -89,4 +91,4 @@ const replacement = `function validate(){
 
 function startProcessing()`;
 await writeFile(appPath, app.replace(validatePattern, replacement));
-console.log('ECON contact capture moved to the first upload step.');
+console.log('ECON contact capture restored with privacy consent and defensive validation.');
