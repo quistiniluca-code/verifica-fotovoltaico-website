@@ -19,7 +19,7 @@ function insertAfterSuccessCopy(index) {
   const cta = `
           <button type="button" class="report-ready-btn" id="reportReadyBtn" aria-controls="report">
             <span>VEDI IL TUO REPORT</span>
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>`;
 
   return index.replace(pattern, `$1${cta}$2`);
