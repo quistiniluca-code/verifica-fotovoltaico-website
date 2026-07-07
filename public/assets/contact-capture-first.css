@@ -1,0 +1,10 @@
+/* ECON — first-step contact capture */
+.contact-capture{margin:2px 0 12px;padding:13px;background:linear-gradient(145deg,#f7fdf0 0%,#fff 78%);border:1px solid rgba(141,198,63,.56);border-radius:18px;box-shadow:0 10px 24px rgba(4,61,0,.06)}
+.contact-capture-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin:0 0 10px}
+.contact-capture-kicker{display:inline-flex;align-items:center;padding:5px 8px;color:#fff;background:var(--g);border-radius:999px;font-size:8.8px;font-weight:950;letter-spacing:.08em;text-transform:uppercase}
+.contact-capture-head small{color:var(--mut);font-size:10.2px;font-weight:800;line-height:1.2;text-align:right}
+.contact-capture-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.contact-capture .field input{background:#fff}
+.contact-capture .privacy{margin:10px 1px 0;font-size:10.5px;line-height:1.3}
+.manual-name-row{margin-bottom:8px}
+@media(max-width:520px){.contact-capture{padding:12px;border-radius:16px}.contact-capture-head{align-items:flex-start}.contact-capture-head small{max-width:155px;font-size:9.8px}.contact-capture-grid{grid-template-columns:1fr}.contact-capture .privacy{font-size:10.2px}}
