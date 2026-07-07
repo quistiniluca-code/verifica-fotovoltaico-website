@@ -15,5 +15,15 @@ await import('./add-report-ready-cta.mjs');
 html = await readFile(indexPath, 'utf8');
 const ctaStyle = '<link rel="stylesheet" href="assets/report-ready.css">';
 if (!html.includes(ctaStyle)) html = html.replace('</head>', `${ctaStyle}\n</head>`);
+
+const firstManualCta = 'Non hai la bolletta? <strong>Continua con i dati manuali</strong><span aria-hidden="true">↓</span>';
+const clearerManualCta = 'Non hai la bolletta? <strong>Inserisci i dati annuali</strong><span aria-hidden="true">↓</span>';
+if (html.includes(firstManualCta)) html = html.replace(firstManualCta, clearerManualCta);
+
+const duplicateManualHeading = '<h3>Non hai la bolletta? Inserisci i dati manuali</h3>';
+const neutralManualHeading = '<h3>Dati annuali dell’immobile</h3>';
+if (!html.includes(duplicateManualHeading)) throw new Error('Manual route: duplicate heading marker not found.');
+html = html.replace(duplicateManualHeading, neutralManualHeading);
+
 await writeFile(indexPath, html);
-console.log('ECON parser v10 and report-ready CTA stylesheet enabled in build output.');
+console.log('ECON parser v10, report CTA and simplified manual route enabled in build output.');
