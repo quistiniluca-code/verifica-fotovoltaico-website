@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "netlify dev",
-    "build": "npm run test:bill-parser && node scripts/build-institutional-v9.mjs && node scripts/align-home-copy-v9.mjs && node scripts/guard-annual-spend-v10.mjs && node scripts/switch-parser-v10.mjs",
+    "build": "npm run test:bill-parser && node scripts/build-institutional-v9.mjs && node scripts/align-home-copy-v9.mjs && node scripts/guard-annual-spend-v10.mjs && node scripts/switch-parser-v10.mjs && node scripts/contact-capture-first-v1.mjs",
     "check": "tsc --noEmit",
     "test:bill-parser": "node tests/bill-parser-v9.test.mjs"
   },

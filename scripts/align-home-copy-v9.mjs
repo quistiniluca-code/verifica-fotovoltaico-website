@@ -56,7 +56,7 @@ html = replaceOnce(html,
 );
 html = replaceOnce(html,
   '<button class="manual-route" id="manualRoute" type="button">Non hai la bolletta? <strong>Continua con i dati manuali</strong><span aria-hidden="true">↓</span></button>',
-  '<button class="manual-route" id="manualRoute" type="button" aria-expanded="false">Non hai la bolletta? <strong>Inserisci i dati annuali</strong><span aria-hidden="true">↓</span><span class="manual-route-copy" id="manualRouteHint">Inserisci i dati solo se non hai la bolletta.</span></button>',
+  '<button class="manual-route" id="manualRoute" type="button" aria-expanded="false">Non hai la bolletta? <strong>Inserisci i dati annuali</strong><span aria-hidden="true">↓</span></button>',
   'manual route'
 );
 html = replaceOnce(html,

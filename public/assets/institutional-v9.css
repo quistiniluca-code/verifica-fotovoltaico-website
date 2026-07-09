@@ -3,7 +3,6 @@
 
 .manual-route{margin-top:12px}
 .manual-route strong{display:inline}
-.manual-route .manual-route-copy{display:block;margin-top:4px;color:var(--mut);font-size:10.5px;font-weight:600;line-height:1.3}
 
 #contactBlock[hidden]{display:none!important}
 #contactBlock.manual-open{animation:econManualIn .28s var(--ease) both}
@@ -20,6 +19,5 @@
 @media(max-width:700px){
   .address-grid,.address-grid--street{grid-template-columns:1fr}
   .roof-address-focus{padding:12px;border-radius:15px}
-  .manual-route .manual-route-copy{font-size:10px}
 }
 @media(prefers-reduced-motion:reduce){#contactBlock.manual-open{animation:none}}
