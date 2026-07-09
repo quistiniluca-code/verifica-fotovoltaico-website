@@ -28,7 +28,7 @@ html = html.replace(/\s*<label class="privacy"><input type="checkbox" id="privac
 
 const contactCard = `
           <section class="contact-capture" aria-label="Contatti per ricevere il report">
-            <div class="contact-capture-head"><span class="contact-capture-kicker">I tuoi contatti</span><small>Per inviarti il report e ricontattarti.</small></div>
+            <div class="contact-capture-head"><span class="contact-capture-kicker">I tuoi contatti</span></div>
             <div class="contact-capture-grid">
               <div class="field"><label for="iphone">Cellulare</label><input id="iphone" name="telefono" autocomplete="tel" inputmode="tel" required aria-required="true" placeholder=" "></div>
               <div class="field"><label for="iemail">Email</label><input id="iemail" name="email" type="email" autocomplete="email" inputmode="email" required aria-required="true" placeholder=" "></div>
@@ -91,4 +91,4 @@ const replacement = `function validate(){
 
 function startProcessing()`;
 await writeFile(appPath, app.replace(validatePattern, replacement));
-console.log('ECON contact capture restored with privacy consent and defensive validation.');
+console.log('ECON contact capture restored without helper copy.');
